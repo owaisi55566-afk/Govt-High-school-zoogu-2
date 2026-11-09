@@ -68,6 +68,7 @@ const t=k=>TX[k][lang=='hi'?1:0];
 
 /* ===== DATA LAYER: Firebase (free Spark plan). If Firebase cannot load, the page runs in local demo mode. ===== */
 const CFG={apiKey:'AIzaSyB0q5pUQcdNmqk2OmAM6iOQSlpei34eAww',authDomain:'government-high-school-zoogu.firebaseapp.com',projectId:'government-high-school-zoogu',storageBucket:'government-high-school-zoogu.firebasestorage.app',messagingSenderId:'346155774660',appId:'1:346155774660:web:cc6f77f646ae4b32b9cf91',adminEmail:'ghszoogu121@gmail.com'};
+const MAXP=6; /* maximum applications allowed from one mobile number */
 const FB=typeof firebase!=='undefined';
 let fs,auth,authReady,fbLogin,S;
 const ls={g:c=>{try{return JSON.parse(localStorage.getItem('gs_'+c)||'[]')}catch(e){return[]}},s:(c,a)=>{try{localStorage.setItem('gs_'+c,JSON.stringify(a))}catch(e){}}};
@@ -123,8 +124,9 @@ H.af=async f=>{const d=Object.fromEntries(new FormData(f)),m=$('#am');
  const b=f.querySelector('button');b.disabled=true;b.textContent='Submitting…';m.textContent='';
  try{const k=await sha([d.name,d.dob,d.phone].join('|').toLowerCase()),ph=await sha(d.phone);
   if(await S.one('dups',k))throw new Error('An application for this student already exists. Use “Check status” instead.');
+  const pc=await S.one('phones',ph);if(pc&&pc.n>=MAXP)throw new Error('This mobile number has already been used for '+MAXP+' applications, which is the limit.');
   d.id='GHS'+Math.random().toString(36).slice(2,8).toUpperCase()+String(Date.now()).slice(-3);d.st='Pending';d.at=new Date().toISOString().slice(0,10);
-  await S.put('applications',d);await S.put('status',{id:d.id,ph,k,st:'Pending',cls:d.cls});await S.put('dups',{id:k});const c=await exCfg();if(c.on&&req(c,d.cls)){EXID=d.id;location.hash='exam'}else{app.innerHTML=slip(d);scrollTo(0,0)}
+  await S.put('phones',{id:ph,n:(pc?pc.n:0)+1});await S.put('applications',d);await S.put('status',{id:d.id,ph,k,st:'Pending',cls:d.cls});await S.put('dups',{id:k});const c=await exCfg();if(c.on&&req(c,d.cls)){EXID=d.id;location.hash='exam'}else{app.innerHTML=slip(d);scrollTo(0,0)}
  }catch(e){m.textContent=e.message||'Could not submit. Please try again.';b.disabled=false;b.textContent='Submit application'}};
 H.sf=async f=>{const m=$('#sm'),id=f.elements.id.value.trim().toUpperCase();m.textContent='';
  const o=await S.one('status',id);
@@ -201,7 +203,7 @@ document.addEventListener('click',async e=>{const b=e.target.closest('[data-a]')
  else if(a=='csv')csv(CSVR,'applications.csv')
  else if(a=='v'){const x=AP.find(r=>r.id==id),d=$('#dt');d.style.display='block';d.innerHTML=`<h3>${esc(x.name)} (${x.id})</h3><dl>${Object.entries(x).map(([k,v])=>`<dt>${k}</dt><dd>${esc(v)}</dd>`).join('')}</dl>`;d.scrollIntoView()}
  else if(ST.includes(a)){await setSt(id,a);tbl();alert('Marked as '+a)}
- else if(a=='del'){if(confirm('Delete this application permanently?')){const o0=await S.one('status',id);if(o0&&o0.k)await S.del('dups',o0.k);await S.del('applications',id);await S.del('status',id);AP=AP.filter(r=>r.id!=id);tbl()}}
+ else if(a=='del'){if(confirm('Delete this application permanently?')){const o0=await S.one('status',id);if(o0&&o0.k)await S.del('dups',o0.k);if(o0&&o0.ph){const pq=await S.one('phones',o0.ph);if(pq)await S.put('phones',{...pq,n:Math.max(pq.n-1,0)})}await S.del('applications',id);await S.del('status',id);AP=AP.filter(r=>r.id!=id);tbl()}}
  else if(a=='dl'){if(confirm('Delete this record?')){await S.del(k,id);tabGo()}}
  else if(a=='pr')prn(k,(await S.all(k)).find(r=>r.id==id))
  else if(a=='mcsv')csv(await S.all(k),M[k].n+'.csv')
